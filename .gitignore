@@ -1,0 +1,8 @@
+# Upload helper (duplicate of index.html, not part of the deployed site)
+index-html-for-upload.txt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
