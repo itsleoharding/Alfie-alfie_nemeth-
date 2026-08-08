@@ -14,21 +14,11 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="preconnect" href="https://calendly.com" />
   <link rel="preconnect" href="https://assets.calendly.com" crossorigin />
-  <link rel="preconnect" href="https://fast.wistia.com" />
-  <link rel="preconnect" href="https://fast.wistia.net" crossorigin />
-  <link rel="preconnect" href="https://embed-ssl.wistia.com" crossorigin />
-  <link rel="preconnect" href="https://embed-cloudfront.wistia.com" crossorigin />
   <link rel="preconnect" href="https://miro.com" />
   <link
     href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Roboto+Slab:wght@400;900&display=swap"
     rel="stylesheet"
   />
-
-  <!-- Wistia player runtime + this media's embed module for the hero -->
-  <!-- walkthrough (async, so they don't block first paint). Origins   -->
-  <!-- are preconnected above.                                         -->
-  <script src="https://fast.wistia.com/player.js" async></script>
-  <script src="https://fast.wistia.com/embed/q9gp5k1np3.js" async type="module"></script>
 
   <style>
     :root {
@@ -250,27 +240,19 @@
         0 18px 50px -30px rgba(0, 0, 0, 0.8);
     }
 
-    .video-frame iframe {
+    .video-frame iframe,
+    .video-frame video {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
       border: 0;
     }
-    /* Hero Wistia web-component fills the 16:9 frame (it renders its own      */
-    /* player inside its shadow DOM). While the custom element is still        */
-    /* upgrading (:not(:defined)) show Wistia's blurred swatch as a poster.    */
-    .video-frame wistia-player {
-      display: block;
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+    /* Self-hosted hero video fills the 16:9 frame; cover crops any tiny ratio */
+    /* mismatch, black backdrop while it loads.                               */
+    .video-frame video {
+      object-fit: cover;
       background: #000;
-    }
-    .video-frame wistia-player[media-id='q9gp5k1np3']:not(:defined) {
-      background: #000 center / contain no-repeat url('https://fast.wistia.com/embed/medias/q9gp5k1np3/swatch');
-      filter: blur(5px);
     }
 
     /* ============ MIRO BOARD (Client Results) ============ */
@@ -1130,7 +1112,7 @@
   <!-- with a bracket "[", so removing it re-activates the tile.          -->
   <!--                                                                 -->
   <!-- ALREADY-LIVE slots (do not bracket):                            -->
-  <!--   Hero walkthrough video (Wistia embed, media q9gp5k1np3),      -->
+  <!--   Hero walkthrough video (self-hosted Video.mp4 at site root),  -->
   <!--   Miro Client Results board, both Calendly links (discovery-    -->
   <!--   call).                                                        -->
   <!-- ============================================================= -->
@@ -1167,12 +1149,22 @@
         </p>
 
         <!-- HERO VIDEO FRAME -->
-        <!-- Wistia embed (web component, externally hosted — no large file in   -->
-        <!-- the deploy). Media q9gp5k1np3. Defaults to 1.5x via the native       -->
-        <!-- playback-rate attribute (reinforced by the script below), with       -->
-        <!-- pitch preserved so the faster playback looks and sounds natural.      -->
+        <!-- Self-hosted walkthrough (720p MP4, faststart, pulled from the       -->
+        <!-- Wistia master and served from the site root). Native <video> plays  -->
+        <!-- progressively so it starts instantly on desktop — no HLS engine.    -->
+        <!-- Native controls + fullscreen; plays at 1.5x with pitch preserved    -->
+        <!-- via the hero-video script below.                                    -->
         <div class="video-frame fade-up mt-10">
-          <wistia-player media-id="q9gp5k1np3" aspect="1.7777777777777777" playback-rate="1.5" preload="auto"></wistia-player>
+          <video
+            id="hero-video"
+            src="Video.mp4"
+            title="Walkthrough for Alfie Nemeth"
+            controls
+            playsinline
+            preload="metadata">
+            Your browser does not support embedded video. You can
+            <a href="Video.mp4">download the walkthrough</a> instead.
+          </video>
         </div>
 
         <!-- CALL TO ACTION -->
@@ -2503,34 +2495,26 @@
 
     // ===========================================================
     // HERO VIDEO — HARDWIRED 1.5x PLAYBACK, PITCH PRESERVED
-    // Wistia's dashboard won't let us set a default speed on this plan, so the
-    // 1.5x is enforced from the embed. The declarative default is the
-    // playback-rate="1.5" attribute on the <wistia-player> element (the Aurora
-    // player's documented default-on-load mechanism). This script reinforces it
-    // via the element's native playbackRate property once the custom element is
-    // defined, and re-asserts on (re)play / seek so it can't drift back to 1x.
-    // Wistia plays through the browser's HTML5 video, which preserves audio
-    // pitch, so 1.5x still looks and sounds natural.
+    // The self-hosted walkthrough plays at 1.5x so it stays short. preservesPitch
+    // keeps the audio at its natural pitch (no chipmunk effect), so the faster
+    // playback still looks and sounds normal. The rate is re-applied on load and
+    // on play because some engines reset playbackRate when the media (re)loads,
+    // and preservesPitch is set with its vendor-prefixed variants for older
+    // Safari / Firefox.
     // ===========================================================
     (function () {
+      var v = document.getElementById("hero-video");
+      if (!v) return;
       var RATE = 1.5;
-      var el = document.querySelector('wistia-player[media-id="q9gp5k1np3"]');
-      if (!el) return;
-      function apply() {
-        try { if (el.playbackRate !== RATE) el.playbackRate = RATE; } catch (e) {}
+      function applyRate() {
+        if ("preservesPitch" in v) v.preservesPitch = true;
+        if ("mozPreservesPitch" in v) v.mozPreservesPitch = true;
+        if ("webkitPreservesPitch" in v) v.webkitPreservesPitch = true;
+        if (v.playbackRate !== RATE) v.playbackRate = RATE;
       }
-      function wire() {
-        apply();
-        // Native Aurora events; unknown names simply never fire (harmless).
-        ["play", "playing", "ended", "seeked", "seek", "end"].forEach(function (ev) {
-          el.addEventListener(ev, apply);
-        });
-      }
-      if (window.customElements && customElements.whenDefined) {
-        customElements.whenDefined("wistia-player").then(wire);
-      } else {
-        wire();
-      }
+      applyRate();
+      v.addEventListener("loadedmetadata", applyRate);
+      v.addEventListener("play", applyRate);
     })();
 
     // ===========================================================
