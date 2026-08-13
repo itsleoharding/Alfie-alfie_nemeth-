@@ -2982,17 +2982,19 @@
         [0.97, 1, 0.9, 0.72].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
         return svgFace('viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + SVGNS + '">' + s + "</svg>");
       }
-      // Out-of-focus title slide (landscape 16:9): a dark slide with a centred
-      // title (two wide bars), a thin subtitle bar, and a small sage accent.
+      // Same drawn document look as docFace(), but in 16:9 LANDSCAPE: a
+      // near-white page with a short heavy heading bar, thin grey text lines of
+      // varied widths, a paragraph gap, a second heading, and more lines.
       function deckFace() {
-        var W = 320, H = 180;
-        var s =
-          '<defs><linearGradient id="dpdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b2b"/><stop offset="1" stop-color="#1e1e1e"/></linearGradient></defs>' +
-          '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="url(#dpdg)"/>' +
-          '<rect x="' + (W * 0.22) + '" y="' + (H * 0.40) + '" width="' + (W * 0.56) + '" height="14" rx="3" fill="#ececec"/>' +
-          '<rect x="' + (W * 0.30) + '" y="' + (H * 0.40 + 22) + '" width="' + (W * 0.40) + '" height="14" rx="3" fill="#e3e3e0"/>' +
-          '<rect x="' + (W * 0.35) + '" y="' + (H * 0.40 + 44) + '" width="' + (W * 0.30) + '" height="6" rx="2" fill="#8f9a92"/>' +
-          '<rect x="18" y="18" width="46" height="8" rx="4" fill="#b1f7cc"/>';
+        var W = 320, H = 180, x = 22, maxW = W - 44, y = 22, s = "";
+        s += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#f4f4f2"/>';
+        s += '<rect x="1.5" y="1.5" width="' + (W - 3) + '" height="' + (H - 3) + '" rx="4" fill="#f4f4f2" stroke="#e3e3de"/>';
+        function line(w, h, fill) { s += '<rect x="' + x + '" y="' + y + '" width="' + (maxW * w) + '" height="' + h + '" rx="1.5" fill="' + fill + '"/>'; }
+        line(0.45, 7, "#b4b4ad"); y += 18;                 // heading 1 (~45%, heavier)
+        [1, 0.94, 0.97, 0.72, 1, 0.9].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
+        y += 8;                                            // paragraph gap
+        line(0.38, 7, "#b4b4ad"); y += 18;                 // heading 2
+        [0.97, 1, 0.9, 0.72].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
         return svgFace('viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + SVGNS + '">' + s + "</svg>");
       }
 
