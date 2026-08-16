@@ -6,3 +6,10 @@ index-html-for-upload.txt
 Thumbs.db
 desktop.ini
 *.tmp
+
+# Root-level Flat/Stack/Deck masters — staging only; the per-folder copies
+# under "Sample Deliverables/**/" are what the site uses and commits.
+/Flat.png
+/Stack.png.png
+/Stack.png
+/Deck.png

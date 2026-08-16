@@ -872,11 +872,9 @@
       box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.4);
     }
     .dp-win.dp-scroll { aspect-ratio: 5 / 6; }  /* landing pages: pixel-true top */
-    .dp-win.dp-doc { aspect-ratio: 8.5 / 11; }  /* drawn document (portrait)     */
-    .dp-win.dp-deck { aspect-ratio: 16 / 9; }   /* drawn title slide (landscape) */
-    /* The media (real asset OR drawn SVG face), obscured. Scaled up slightly   */
-    /* so the blur leaves no transparent halo at the clipped edges. Only the    */
-    /* media is blurred — the frame / border / overlays are not.                */
+    /* The image, obscured. Scaled up slightly so the blur leaves no transparent */
+    /* halo at the clipped edges. Only the media is blurred — the frame / border */
+    /* / overlays are not.                                                       */
     .dp-media {
       position: absolute;
       inset: 0;
@@ -892,7 +890,6 @@
       height: auto;            /* tall page, top-aligned, clipped by the window */
       transform-origin: top center;
     }
-    svg.dp-media { object-fit: fill; }  /* drawn faces fill the window exactly  */
     /* Dark tint (flat, ~var(--dp-tint) alpha) with a radial vignette layered   */
     /* on top (edges darker than centre), over the media.                       */
     .dp-win::after {
@@ -927,11 +924,8 @@
     @media (prefers-reduced-motion: reduce) {
       .dp-win.dp-loading::before { animation: none; }
     }
-    /* Pile: faint offset layers behind the front face, for multi-part          */
-    /* instances (carousels, and sequence / deck documents). Built by JS with   */
-    /* per-layer transform + opacity. The layer fill matches the front face:    */
-    /* a dark frame for photo carousels, paper for document piles, a slide for  */
-    /* deck piles.                                                              */
+    /* Pile: faint offset layers behind a carousel's front slide. Built by JS    */
+    /* with per-layer transform + opacity; same dark frame as the front window.  */
     .dp-stack-layer {
       position: absolute;
       left: 0;
@@ -943,13 +937,6 @@
       border: 1px solid var(--hairline);
       background: radial-gradient(ellipse at center, var(--card) 0%, #191919 100%);
       box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.4);
-    }
-    .dp-stack-layer.dp-l-doc {
-      background: #e7e7e3;            /* a page in the pile behind the document  */
-      border-color: rgba(0, 0, 0, 0.12);
-    }
-    .dp-stack-layer.dp-l-deck {
-      background: linear-gradient(160deg, #2f2f2f 0%, #232323 100%); /* a slide  */
     }
 
     /* ============ DELIVERABLES SLIDER ============ */
@@ -2877,17 +2864,17 @@
     })();
 
     // ===========================================================
-    // DELIVERABLE PREVIEWS (blurred / tinted / vignetted, with pile)
+    // DELIVERABLE PREVIEWS (blurred / tinted / vignetted)
     // For every LIVE sample-deliverable card (its data-lb href — or, for a
     // carousel, its first data-lb-srcs entry — does NOT start with "["), inject
-    // a decorative OBSCURED preview between the sample label and the CTA:
-    //   • VISUAL types render the REAL asset — image (natural ratio), carousel
-    //     (first slide + a pile), or scroll-image (pixel-true TOP of the tall
-    //     landing-page screenshot in a capped 5:6 window).
-    //   • TEXTUAL types (pdf) render a MAKESHIFT DRAWN face — an out-of-focus
-    //     document (portrait) or title slide (landscape) via inline SVG. NO
-    //     PDF.js, NO fetch: previews never touch the real PDF, so they can't
-    //     blank on file:// or contend with the lightbox's PDF worker.
+    // a decorative OBSCURED preview between the sample label and the CTA, chosen
+    // by ONE simple rule:
+    //   • If the asset is a .jpg / .png, show that image (image at natural ratio;
+    //     carousel = first slide + a pile; landing-page scroll-image = pixel-true
+    //     TOP in a capped 5:6 window).
+    //   • If the asset is a PDF, DON'T touch the PDF — show a sibling preview
+    //     image from the asset's own folder: "Flat" (Reel, Direct-to-camera),
+    //     "Deck" (Slideshow), or "Stack" (every other PDF), as .png or .jpg.
     // Coming-soon / bracketed cards get nothing. Rendering is lazy
     // (IntersectionObserver, ~200px). Every window is aria-hidden +
     // pointer-events:none, so the CTA remains the ONLY way to open the lightbox
@@ -2897,8 +2884,6 @@
       var BLUR_PX = 5;             // blur strength, px
       var TINT_ALPHA = 0.35;       // dark tint alpha over each preview
       var CAROUSEL_STACK_MAX = 3;  // cap on carousel pile depth (incl. front)
-      var DOC_STACK = 3;           // pages behind a document pile (sequences, VSL)
-      var DECK_STACK = 4;          // slides behind a deck pile (webinar slideshow)
 
       var root = document.documentElement;
       root.style.setProperty("--dp-blur", BLUR_PX + "px");
@@ -2914,16 +2899,14 @@
       }
       function done(win) { win.classList.remove("dp-loading"); }
 
-      // Faint offset pile behind the front face. `layers` = number of layers
-      // behind; `kind` picks the layer fill (photo | doc | deck). The nearest
-      // layer (smallest offset) is appended last so it paints on top of the
-      // farther ones; all sit under the front .dp-win via z-index.
-      function addStack(pre, layers, kind) {
+      // Faint offset pile behind a carousel's front slide. `layers` = number of
+      // layers behind; the nearest (smallest offset) is appended last so it
+      // paints on top of the farther ones; all sit under the front .dp-win.
+      function addStack(pre, layers) {
         var n = Math.min(Math.max(layers, 0), 4);
-        var mod = kind === "doc" ? " dp-l-doc" : kind === "deck" ? " dp-l-deck" : "";
         for (var i = n; i >= 1; i--) {
           var d = document.createElement("div");
-          d.className = "dp-stack-layer" + mod;
+          d.className = "dp-stack-layer";
           var off = 4 + (i - 1) * 4;                      // 4, 8, 12, 16 px
           var op = Math.max(0.3, 0.72 - (i - 1) * 0.14);  // progressively fainter
           d.style.transform = "translate(" + off + "px," + off + "px)";
@@ -2932,19 +2915,25 @@
         }
       }
 
-      // --- Visual previews: the REAL asset, obscured by CSS ---
-      function renderImage(win, src) { // image + carousel front slide
-        var img = new Image();
-        img.decoding = "async";
-        img.className = "dp-media";
-        img.onload = function () {
-          if (!img.naturalWidth || !img.naturalHeight) return fail(win);
-          setRatio(win, img.naturalWidth, img.naturalHeight); // window ratio = natural
-          win.appendChild(img);
-          done(win);
-        };
-        img.onerror = function () { fail(win); };
-        img.src = src;
+      // Render an obscured image at its natural ratio. `list` is one or more
+      // candidate srcs tried in order (PDF previews try the folder's Flat/Stack/
+      // Deck image as .png then .jpg); if all fail, the window hides gracefully.
+      function renderImage(win, list) {
+        var i = 0;
+        (function attempt() {
+          if (i >= list.length) return fail(win);
+          var img = new Image();
+          img.decoding = "async";
+          img.className = "dp-media";
+          img.onload = function () {
+            if (!img.naturalWidth || !img.naturalHeight) { i++; return attempt(); }
+            setRatio(win, img.naturalWidth, img.naturalHeight); // window ratio = natural
+            win.appendChild(img);
+            done(win);
+          };
+          img.onerror = function () { i++; attempt(); };
+          img.src = list[i];
+        })();
       }
       function renderScroll(win, src) { // landing page: true width, top-aligned
         var img = new Image();
@@ -2959,56 +2948,24 @@
         img.src = src;
       }
 
-      // --- Textual previews: MAKESHIFT drawn faces (inline SVG, no fetch) ---
-      var SVGNS = "http://www.w3.org/2000/svg";
-      function svgFace(inner) {
-        var tmp = document.createElement("div");
-        tmp.innerHTML =
-          '<svg class="dp-media" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" ' + inner;
-        return tmp.firstChild;
-      }
-      // Out-of-focus text document (portrait 8.5:11): a near-white page with a
-      // short heavy heading bar, thin grey text lines of varied widths, a
-      // paragraph gap, a second heading, and more lines.
-      function docFace() {
-        var W = 170, H = 220, x = 16, maxW = W - 32, y = 20, s = "";
-        s += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#f4f4f2"/>';
-        s += '<rect x="1.5" y="1.5" width="' + (W - 3) + '" height="' + (H - 3) + '" rx="4" fill="#f4f4f2" stroke="#e3e3de"/>';
-        function line(w, h, fill) { s += '<rect x="' + x + '" y="' + y + '" width="' + (maxW * w) + '" height="' + h + '" rx="1.5" fill="' + fill + '"/>'; }
-        line(0.45, 7, "#b4b4ad"); y += 18;                 // heading 1 (~45%, heavier)
-        [1, 0.94, 0.97, 0.72, 1, 0.9].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
-        y += 8;                                            // paragraph gap
-        line(0.38, 7, "#b4b4ad"); y += 18;                 // heading 2
-        [0.97, 1, 0.9, 0.72].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
-        return svgFace('viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + SVGNS + '">' + s + "</svg>");
-      }
-      // Same drawn document look as docFace(), but in 16:9 LANDSCAPE: a
-      // near-white page with a short heavy heading bar, thin grey text lines of
-      // varied widths, a paragraph gap, a second heading, and more lines.
-      function deckFace() {
-        var W = 320, H = 180, x = 22, maxW = W - 44, y = 22, s = "";
-        s += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#f4f4f2"/>';
-        s += '<rect x="1.5" y="1.5" width="' + (W - 3) + '" height="' + (H - 3) + '" rx="4" fill="#f4f4f2" stroke="#e3e3de"/>';
-        function line(w, h, fill) { s += '<rect x="' + x + '" y="' + y + '" width="' + (maxW * w) + '" height="' + h + '" rx="1.5" fill="' + fill + '"/>'; }
-        line(0.45, 7, "#b4b4ad"); y += 18;                 // heading 1 (~45%, heavier)
-        [1, 0.94, 0.97, 0.72, 1, 0.9].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
-        y += 8;                                            // paragraph gap
-        line(0.38, 7, "#b4b4ad"); y += 18;                 // heading 2
-        [0.97, 1, 0.9, 0.72].forEach(function (w) { line(w, 4, "#cfcfc9"); y += 9; });
-        return svgFace('viewBox="0 0 ' + W + ' ' + H + '" xmlns="' + SVGNS + '">' + s + "</svg>");
-      }
-
-      // Classify a live pdf card by its title / part path into a drawn kind.
-      function classifyPdf(a) {
+      // For a PDF card, pick the sibling preview image in the asset's OWN folder:
+      // "Flat" (Reel, Direct-to-camera), "Deck" (Slideshow), or "Stack" (every
+      // other PDF). Returns the name + .png / .jpg candidate srcs (tried in order).
+      function pdfPreview(a) {
         var t = (a.getAttribute("data-lb-title") || "").toLowerCase();
-        var h = (a.getAttribute("href") || "").toLowerCase();
-        if (t.indexOf("slideshow") >= 0 || h.indexOf("/webinar/slideshow") >= 0) return "deck-stack";
-        if (h.indexOf("/sequences/") >= 0 || h.indexOf("video%20sales%20letter") >= 0 ||
-            t.indexOf("sequence") >= 0 || t.indexOf("email") >= 0 || t.indexOf("whatsapp") >= 0 ||
-            t.indexOf("video sales letter") >= 0) return "doc-stack";
-        if (t.indexOf("direct-to-camera") >= 0 || h.indexOf("direct-to-camera") >= 0 ||
-            t.indexOf("reel") >= 0 || h.indexOf("/pieces/reel") >= 0) return "doc-single";
-        return "doc-single"; // default
+        var h = a.getAttribute("href") || "";
+        var hl = h.toLowerCase();
+        var name;
+        if (hl.indexOf("/webinar/slideshow") >= 0 || t.indexOf("slideshow") >= 0) {
+          name = "Deck";
+        } else if (hl.indexOf("/pieces/reel") >= 0 || t.indexOf("reel") >= 0 ||
+                   hl.indexOf("direct-to-camera") >= 0 || t.indexOf("direct-to-camera") >= 0) {
+          name = "Flat";
+        } else {
+          name = "Stack";
+        }
+        var folder = h.substring(0, h.lastIndexOf("/") + 1); // keeps %20 / %26 encoding
+        return { name: name, srcs: [folder + name + ".png", folder + name + ".jpg"] };
       }
 
       // Build + insert a preview for one live card; returns { win, render } or
@@ -3033,36 +2990,28 @@
         var win = document.createElement("div");
         win.className = "dp-win dp-loading";
 
-        var kind = null; // pdf drawn-face kind, if any
+        var imgList = null; // candidate image srcs for image / carousel / pdf
         if (type === "scroll-image") {
           win.classList.add("dp-scroll");
         } else if (type === "pdf") {
-          kind = classifyPdf(anchor);
+          var pv = pdfPreview(anchor);           // Flat / Stack / Deck sibling image
+          imgList = pv.srcs;
           var card = anchor.closest(".block-card");
-          if (card) card.setAttribute("data-preview", kind); // tag the live pdf card
-          win.classList.add(kind.indexOf("deck") === 0 ? "dp-deck" : "dp-doc");
+          if (card) card.setAttribute("data-preview", pv.name); // tag the live pdf card
+        } else {
+          imgList = [src];                       // image + carousel front slide
         }
         pre.appendChild(win);
         wrapDiv.parentNode.insertBefore(pre, wrapDiv); // between sample-label and CTA
 
-        // Piles are known up-front: slide count for carousels; fixed for docs/decks.
+        // Carousels keep a pile behind the real first slide.
         if (type === "carousel" && srcs) {
-          addStack(pre, Math.min(srcs.length, CAROUSEL_STACK_MAX) - 1, "photo");
-        } else if (kind === "doc-stack") {
-          addStack(pre, DOC_STACK, "doc");
-        } else if (kind === "deck-stack") {
-          addStack(pre, DECK_STACK, "deck");
-        } // image / scroll-image / doc-single: no pile
+          addStack(pre, Math.min(srcs.length, CAROUSEL_STACK_MAX) - 1);
+        }
 
         function render() {
-          if (type === "pdf") {
-            win.appendChild(kind.indexOf("deck") === 0 ? deckFace() : docFace());
-            done(win);
-          } else if (type === "scroll-image") {
-            renderScroll(win, src);
-          } else {
-            renderImage(win, src); // image + carousel front slide
-          }
+          if (type === "scroll-image") renderScroll(win, src);
+          else renderImage(win, imgList); // image / carousel / pdf (Flat|Stack|Deck)
         }
         return { win: win, render: render };
       }
