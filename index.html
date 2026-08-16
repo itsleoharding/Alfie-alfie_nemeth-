@@ -955,6 +955,38 @@
       color: var(--muted);
     }
 
+    /* ============ PART COLUMN VERTICAL SCROLLER ============ */
+    /* For a type that has PARTS (e.g. Ad Creatives -> Static/Video; Sequences   */
+    /* -> Pre-Webinar/Post-Webinar/Pre-Call), the parts are the columns of the   */
+    /* horizontal slider (unchanged), but the instance cards WITHIN each part    */
+    /* scroll VERTICALLY inside a window capped to one instance card tall (its    */
+    /* height is set per column in JS). Vertical scroll-snap shows one card at a  */
+    /* time; the next card peeks as the "scroll for more" affordance. The card    */
+    /* styling is untouched — only the container and scroll direction change.     */
+    .part-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;                       /* same rhythm as the old .block-card mt-6 */
+      overflow-y: auto;
+      overflow-x: hidden;
+      scroll-snap-type: y mandatory;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;  /* don't chain page scroll mid-column */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(177, 247, 204, 0.4) transparent;
+    }
+    .part-scroll::-webkit-scrollbar { width: 8px; }
+    .part-scroll::-webkit-scrollbar-track { background: transparent; }
+    .part-scroll::-webkit-scrollbar-thumb {
+      background-color: rgba(177, 247, 204, 0.3);
+      border-radius: 9999px;
+    }
+    .part-scroll > .block-card {
+      flex: 0 0 auto;
+      width: 100%;            /* fit the scroller content box so the scrollbar */
+      scroll-snap-align: start; /* never clips the card's border               */
+    }
+
     /* ============ CALL TO ACTION BUTTON ============ */
     /* Flat sage with dark text (the agency's colours). Two-line structure:    */
     /* bold serif main line + mono sub-line, with a hover lift.                */
@@ -2940,6 +2972,85 @@
       // on first paint (matches the reveal-on-scroll being disabled — nothing
       // fills in only once scrolled).
       items.forEach(function (it) { it.render(); });
+    })();
+
+    // ===========================================================
+    // PART COLUMNS — vertical one-card scroller
+    // For a deliverable type that has PARTS, its horizontal slider holds part
+    // COLUMNS (a wrapper div per part with a label + its instance cards), rather
+    // than instance cards directly. A no-part type's slider holds .block-card
+    // children directly and is left exactly as-is (horizontal). For each part
+    // column, move its instance cards into a vertical scroll-snap scroller whose
+    // height is capped to ONE instance card (+ a small peek when there's more),
+    // so the widget never grows tall with the instance count. Heights are
+    // measured per column and re-measured as previews/fonts load and on resize.
+    // Runs AFTER previews are built (so measurements include the preview) and
+    // AFTER info-button handlers are bound (moving nodes keeps their listeners).
+    // ===========================================================
+    (function () {
+      var PEEK = 44; // window = one card + this, so the next card peeks (~20px past
+                     // the 24px gap) as the "scroll for more" cue when there's more
+      var scrollers = [];
+
+      document.querySelectorAll(".deliverables-slider").forEach(function (slider) {
+        // Part columns = direct children that are NOT a .block-card but contain one.
+        var cols = [].filter.call(slider.children, function (c) {
+          return c.nodeType === 1 && !c.classList.contains("block-card") && c.querySelector(".block-card");
+        });
+        if (!cols.length) return; // no-part type: leave the horizontal slider untouched
+        cols.forEach(function (col) {
+          col.classList.add("part-col");
+          var cards = [].filter.call(col.children, function (c) {
+            return c.classList && c.classList.contains("block-card");
+          });
+          if (!cards.length) return;
+          var scroller = document.createElement("div");
+          scroller.className = "part-scroll mt-6"; // mt-6 keeps the label -> cards gap
+          cards.forEach(function (card) {
+            card.classList.remove("mt-6");           // spacing now comes from the flex gap
+            scroller.appendChild(card);
+          });
+          col.appendChild(scroller);                 // sits right after the part label
+          scroller.__multi = cards.length > 1;
+          scrollers.push(scroller);
+        });
+      });
+      if (!scrollers.length) return;
+
+      function sizeOne(scroller) {
+        var cards = [].filter.call(scroller.children, function (c) {
+          return c.classList && c.classList.contains("block-card");
+        });
+        if (!cards.length) return;
+        var max = 0;
+        cards.forEach(function (c) { if (c.offsetHeight > max) max = c.offsetHeight; });
+        if (!max) return;
+        scroller.style.height = (max + (scroller.__multi ? PEEK : 0)) + "px";
+      }
+      function sizeAll() { scrollers.forEach(sizeOne); }
+
+      sizeAll();
+      window.addEventListener("load", sizeAll);
+      var rt = null;
+      window.addEventListener("resize", function () {
+        if (rt) clearTimeout(rt);
+        rt = setTimeout(sizeAll, 150);
+      }, { passive: true });
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeAll);
+
+      // Preview images load after first paint and change card heights — re-measure.
+      if ("ResizeObserver" in window) {
+        var raf = 0;
+        var ro = new ResizeObserver(function () {
+          if (raf) cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(sizeAll);
+        });
+        scrollers.forEach(function (s) {
+          [].forEach.call(s.children, function (c) {
+            if (c.classList && c.classList.contains("block-card")) ro.observe(c);
+          });
+        });
+      }
     })();
 
     // ===========================================================
