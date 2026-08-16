@@ -843,17 +843,14 @@
       flex: 0 0 auto;
     }
 
-    /* ============ DELIVERABLE PREVIEW WINDOW (blurred / tinted) ============ */
-    /* Purely decorative obscured preview of each LIVE card's asset, injected   */
-    /* by JS between the sample label and the CTA. VISUAL types (image /        */
-    /* carousel / scroll-image) show the REAL asset; TEXTUAL types (pdf) show a  */
-    /* MAKESHIFT drawn document / title slide (inline SVG — no PDF.js, no        */
-    /* fetch). Both are blurred + dark-tinted + vignetted so they read as        */
-    /* "almost" legible finished work. Multi-part instances (carousels,         */
-    /* sequence / deck documents) get a pile of faint offset layers behind the  */
-    /* front face. aria-hidden + pointer-events:none, so the CTA stays the only */
-    /* way to open the lightbox. BLUR_PX and the tint alpha come from JS consts */
-    /* via the --dp-blur / --dp-tint custom properties.                         */
+    /* ============ DELIVERABLE PREVIEW (raw supplied image) ============ */
+    /* Each supplied preview image (the .jpg/.png assets, and the Flat/Stack/    */
+    /* Deck images for PDF instances) is ALREADY fully styled — blur, vignette,  */
+    /* framing, and aspect ratio are baked in. So the site adds NOTHING on top:  */
+    /* no frame, shadow, rounded-corner mask, tint, vignette, blur, or crop, and */
+    /* no forced aspect ratio. The raw image is placed between the sample label  */
+    /* and the CTA at its own natural aspect ratio. aria-hidden +               */
+    /* pointer-events:none, so the CTA stays the only way to open the lightbox.  */
     .dp-preview {
       width: 100%;
       margin-top: 1.5rem;
@@ -862,81 +859,13 @@
     }
     .dp-win {
       position: relative;
-      z-index: 2;
       width: 100%;
-      aspect-ratio: 1 / 1; /* placeholder until the real ratio is known */
-      border-radius: 12px;
-      border: 1px solid var(--hairline);
-      background: var(--card);
-      overflow: hidden;
-      box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.4);
     }
-    .dp-win.dp-scroll { aspect-ratio: 5 / 6; }  /* landing pages: pixel-true top */
-    /* The image, obscured. Scaled up slightly so the blur leaves no transparent */
-    /* halo at the clipped edges. Only the media is blurred — the frame / border */
-    /* / overlays are not.                                                       */
+    /* The raw image, as supplied — no effects, no crop, natural aspect ratio. */
     .dp-media {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
       display: block;
-      filter: blur(var(--dp-blur, 5px));
-      transform: scale(1.05);
-    }
-    .dp-win.dp-scroll .dp-media {
-      height: auto;            /* tall page, top-aligned, clipped by the window */
-      transform-origin: top center;
-    }
-    /* Dark tint (flat, ~var(--dp-tint) alpha) with a radial vignette layered   */
-    /* on top (edges darker than centre), over the media.                       */
-    .dp-win::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 2;
-      pointer-events: none;
-      background:
-        radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.55) 100%),
-        rgba(0, 0, 0, var(--dp-tint, 0.35));
-    }
-    /* Quiet loading shimmer until the source is rendered. */
-    .dp-win.dp-loading::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 3;
-      background: linear-gradient(
-        100deg,
-        rgba(255, 255, 255, 0) 30%,
-        rgba(177, 247, 204, 0.07) 50%,
-        rgba(255, 255, 255, 0) 70%
-      );
-      background-size: 220% 100%;
-      animation: dp-shimmer 1.4s ease-in-out infinite;
-    }
-    @keyframes dp-shimmer {
-      0% { background-position: 120% 0; }
-      100% { background-position: -120% 0; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .dp-win.dp-loading::before { animation: none; }
-    }
-    /* Pile: faint offset layers behind a carousel's front slide. Built by JS    */
-    /* with per-layer transform + opacity; same dark frame as the front window.  */
-    .dp-stack-layer {
-      position: absolute;
-      left: 0;
-      top: 0;
-      z-index: 1;
       width: 100%;
-      height: 100%;
-      border-radius: 12px;
-      border: 1px solid var(--hairline);
-      background: radial-gradient(ellipse at center, var(--card) 0%, #191919 100%);
-      box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.4);
+      height: auto;
     }
 
     /* ============ DELIVERABLES SLIDER ============ */
@@ -2864,60 +2793,34 @@
     })();
 
     // ===========================================================
-    // DELIVERABLE PREVIEWS (blurred / tinted / vignetted)
+    // DELIVERABLE PREVIEWS (raw supplied images — no post-processing)
     // For every LIVE sample-deliverable card (its data-lb href — or, for a
     // carousel, its first data-lb-srcs entry — does NOT start with "["), inject
-    // a decorative OBSCURED preview between the sample label and the CTA, chosen
-    // by ONE simple rule:
-    //   • If the asset is a .jpg / .png, show that image (image at natural ratio;
-    //     carousel = first slide + a pile; landing-page scroll-image = pixel-true
-    //     TOP in a capped 5:6 window).
-    //   • If the asset is a PDF, DON'T touch the PDF — show a sibling preview
-    //     image from the asset's own folder: "Flat" (Reel, Direct-to-camera),
-    //     "Deck" (Slideshow), or "Stack" (every other PDF), as .png or .jpg.
+    // the card's supplied preview image between the sample label and the CTA,
+    // chosen by ONE simple rule:
+    //   • If the asset is a .jpg / .png, use that image.
+    //   • If the asset is a PDF, DON'T touch the PDF — use a sibling image from
+    //     the asset's own folder: "Flat" (Reel, Direct-to-camera), "Deck"
+    //     (Slideshow), or "Stack" (every other PDF), as .png or .jpg.
+    // The images are ALREADY fully styled (blur, vignette, framing, aspect ratio
+    // baked in), so they are placed RAW — no site-side blur, tint, vignette,
+    // frame, shadow, mask, crop, or forced ratio — at their natural aspect ratio.
     // Coming-soon / bracketed cards get nothing. Rendering is lazy
     // (IntersectionObserver, ~200px). Every window is aria-hidden +
     // pointer-events:none, so the CTA remains the ONLY way to open the lightbox
     // (which still opens the real assets, incl. real PDFs, and is untouched).
     // ===========================================================
     (function () {
-      var BLUR_PX = 5;             // blur strength, px
-      var TINT_ALPHA = 0.35;       // dark tint alpha over each preview
-      var CAROUSEL_STACK_MAX = 3;  // cap on carousel pile depth (incl. front)
-
-      var root = document.documentElement;
-      root.style.setProperty("--dp-blur", BLUR_PX + "px");
-      root.style.setProperty("--dp-tint", String(TINT_ALPHA));
-
-      function setRatio(win, w, h) {
-        if (w > 0 && h > 0) win.style.aspectRatio = w + " / " + h;
-      }
       function fail(win) {
-        win.classList.remove("dp-loading");
         var pre = win.closest(".dp-preview");
         if (pre) pre.style.display = "none"; // hide THIS window gracefully
       }
-      function done(win) { win.classList.remove("dp-loading"); }
 
-      // Faint offset pile behind a carousel's front slide. `layers` = number of
-      // layers behind; the nearest (smallest offset) is appended last so it
-      // paints on top of the farther ones; all sit under the front .dp-win.
-      function addStack(pre, layers) {
-        var n = Math.min(Math.max(layers, 0), 4);
-        for (var i = n; i >= 1; i--) {
-          var d = document.createElement("div");
-          d.className = "dp-stack-layer";
-          var off = 4 + (i - 1) * 4;                      // 4, 8, 12, 16 px
-          var op = Math.max(0.3, 0.72 - (i - 1) * 0.14);  // progressively fainter
-          d.style.transform = "translate(" + off + "px," + off + "px)";
-          d.style.opacity = String(op);
-          pre.appendChild(d);
-        }
-      }
-
-      // Render an obscured image at its natural ratio. `list` is one or more
-      // candidate srcs tried in order (PDF previews try the folder's Flat/Stack/
-      // Deck image as .png then .jpg); if all fail, the window hides gracefully.
+      // Place the raw supplied image as-is — no effects, no crop. Its natural
+      // aspect ratio comes straight from the .dp-media CSS (width:100%,
+      // height:auto). `list` is one or more candidate srcs tried in order (PDF
+      // previews try the folder's Flat/Stack/Deck image as .png then .jpg); if
+      // all fail, the window hides gracefully.
       function renderImage(win, list) {
         var i = 0;
         (function attempt() {
@@ -2927,25 +2830,11 @@
           img.className = "dp-media";
           img.onload = function () {
             if (!img.naturalWidth || !img.naturalHeight) { i++; return attempt(); }
-            setRatio(win, img.naturalWidth, img.naturalHeight); // window ratio = natural
             win.appendChild(img);
-            done(win);
           };
           img.onerror = function () { i++; attempt(); };
           img.src = list[i];
         })();
-      }
-      function renderScroll(win, src) { // landing page: true width, top-aligned
-        var img = new Image();
-        img.decoding = "async";
-        img.className = "dp-media";
-        img.onload = function () {
-          if (!img.naturalWidth) return fail(win);
-          win.appendChild(img);
-          done(win);
-        };
-        img.onerror = function () { fail(win); };
-        img.src = src;
       }
 
       // For a PDF card, pick the sibling preview image in the asset's OWN folder:
@@ -2988,31 +2877,21 @@
         pre.className = "dp-preview";
         pre.setAttribute("aria-hidden", "true");
         var win = document.createElement("div");
-        win.className = "dp-win dp-loading";
+        win.className = "dp-win";
 
-        var imgList = null; // candidate image srcs for image / carousel / pdf
-        if (type === "scroll-image") {
-          win.classList.add("dp-scroll");
-        } else if (type === "pdf") {
+        var imgList; // supplied image src(s) to place raw
+        if (type === "pdf") {
           var pv = pdfPreview(anchor);           // Flat / Stack / Deck sibling image
           imgList = pv.srcs;
           var card = anchor.closest(".block-card");
           if (card) card.setAttribute("data-preview", pv.name); // tag the live pdf card
         } else {
-          imgList = [src];                       // image + carousel front slide
+          imgList = [src];                       // image / carousel first slide / scroll-image
         }
         pre.appendChild(win);
         wrapDiv.parentNode.insertBefore(pre, wrapDiv); // between sample-label and CTA
 
-        // Carousels keep a pile behind the real first slide.
-        if (type === "carousel" && srcs) {
-          addStack(pre, Math.min(srcs.length, CAROUSEL_STACK_MAX) - 1);
-        }
-
-        function render() {
-          if (type === "scroll-image") renderScroll(win, src);
-          else renderImage(win, imgList); // image / carousel / pdf (Flat|Stack|Deck)
-        }
+        function render() { renderImage(win, imgList); }
         return { win: win, render: render };
       }
 
