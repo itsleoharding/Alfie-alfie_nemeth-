@@ -843,14 +843,16 @@
       flex: 0 0 auto;
     }
 
-    /* ============ DELIVERABLE PREVIEW (supplied image) ============ */
-    /* Each supplied preview image (the .jpg/.png assets, and the Flat/Stack/    */
-    /* Deck images for PDF instances) already bakes in its own blur / vignette / */
-    /* styling, so the site adds NO blur, tint, or vignette on top. Landing-page */
-    /* screenshots are cropped to a 4:3 VERTICAL card (top of the page, via      */
-    /* object-fit cover); every other preview keeps its natural aspect ratio.    */
+    /* ============ DELIVERABLE PREVIEW ============ */
     /* Injected between the sample label and the CTA; aria-hidden +              */
     /* pointer-events:none, so the CTA stays the only way to open the lightbox.  */
+    /* Two treatments, both in a rounded-corner card:                           */
+    /*   • Image instances (.jpg/.png: image, carousel, landing page) get the    */
+    /*     obscured look — blur + dark tint/vignette + framed card (.dp-obscure). */
+    /*   • PDF instances (the pre-styled Flat/Stack/Deck images) OMIT .dp-obscure */
+    /*     so they get NO blur/vignette — just the same rounded-corner card.      */
+    /* Landing pages crop to a 4:3 vertical card (top of the page, cover);        */
+    /* everything else uses its natural aspect ratio (set from the image in JS).  */
     .dp-preview {
       width: 100%;
       margin-top: 1.5rem;
@@ -860,27 +862,42 @@
     .dp-win {
       position: relative;
       width: 100%;
-    }
-    /* Non-landing previews: the raw image at its own natural aspect ratio. */
-    .dp-media {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
-    /* Landing pages (tall full-page screenshots): crop to a 4:3 VERTICAL card   */
-    /* (3:4 w:h) and show only the TOP of the page via object-fit cover — still  */
-    /* no blur / vignette / overlay added on the image.                         */
-    .dp-win.dp-scroll {
-      aspect-ratio: 3 / 4;
+      aspect-ratio: 1 / 1;   /* placeholder until the natural ratio is set (JS) */
+      border-radius: 12px;   /* rounded corners on every preview card */
       overflow: hidden;
     }
-    .dp-win.dp-scroll .dp-media {
+    .dp-media {
       position: absolute;
       inset: 0;
+      z-index: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: top center;
+      display: block;
+    }
+    /* Landing pages (tall screenshots): 4:3 vertical card, top-cropped. */
+    .dp-win.dp-scroll { aspect-ratio: 3 / 4; }
+    .dp-win.dp-scroll .dp-media { object-position: top center; transform-origin: top center; }
+    /* Image-instance previews: the original obscured treatment (frame + blur +  */
+    /* vignette). PDF previews omit .dp-obscure, so they get none of this.        */
+    .dp-win.dp-obscure {
+      border: 1px solid var(--hairline);
+      background: var(--card);
+      box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.4);
+    }
+    .dp-win.dp-obscure .dp-media {
+      filter: blur(var(--dp-blur, 5px));
+      transform: scale(1.05);  /* hide the blur's transparent halo at the edges */
+    }
+    .dp-win.dp-obscure::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.55) 100%),
+        rgba(0, 0, 0, var(--dp-tint, 0.35));
     }
 
     /* ============ DELIVERABLES SLIDER ============ */
@@ -2817,27 +2834,36 @@
     //   • If the asset is a PDF, DON'T touch the PDF — use a sibling image from
     //     the asset's own folder: "Flat" (Reel, Direct-to-camera), "Deck"
     //     (Slideshow), or "Stack" (every other PDF), as .png or .jpg.
-    // The images already bake in their own styling, so the site adds NO blur,
-    // tint, or vignette. Landing-page screenshots are cropped to a 4:3 vertical
-    // card (top of the page, via object-fit cover); every other preview keeps
-    // its natural aspect ratio.
+    // Image instances (.jpg/.png: image, carousel, landing page) get the site's
+    // obscured look — blur + dark tint/vignette + framed rounded card. PDF
+    // instances (the pre-styled Flat/Stack/Deck images) get NO blur/vignette,
+    // just the same rounded-corner card. Landing-page screenshots crop to a 4:3
+    // vertical card (top of the page, cover); everything else keeps its natural
+    // aspect ratio.
     // Coming-soon / bracketed cards get nothing. Rendering is lazy
     // (IntersectionObserver, ~200px). Every window is aria-hidden +
     // pointer-events:none, so the CTA remains the ONLY way to open the lightbox
     // (which still opens the real assets, incl. real PDFs, and is untouched).
     // ===========================================================
     (function () {
+      var BLUR_PX = 5;        // blur strength on image-instance previews, px
+      var TINT_ALPHA = 0.35;  // dark tint alpha on image-instance previews
+      var root = document.documentElement;
+      root.style.setProperty("--dp-blur", BLUR_PX + "px");
+      root.style.setProperty("--dp-tint", String(TINT_ALPHA));
+
       function fail(win) {
         var pre = win.closest(".dp-preview");
         if (pre) pre.style.display = "none"; // hide THIS window gracefully
       }
 
-      // Place the raw supplied image as-is — no effects, no crop. Its natural
-      // aspect ratio comes straight from the .dp-media CSS (width:100%,
-      // height:auto). `list` is one or more candidate srcs tried in order (PDF
-      // previews try the folder's Flat/Stack/Deck image as .png then .jpg); if
-      // all fail, the window hides gracefully.
-      function renderImage(win, list) {
+      // Place a supplied image into the window. `list` is one or more candidate
+      // srcs tried in order (PDF previews try the folder's Flat/Stack/Deck image
+      // as .png then .jpg). When setRatio is true the window takes the image's
+      // natural aspect ratio; landing pages pass false to keep their fixed 3:4.
+      // Any blur / vignette / frame is applied purely in CSS (the window's
+      // .dp-obscure class). If all srcs fail, the window hides gracefully.
+      function renderImage(win, list, setRatio) {
         var i = 0;
         (function attempt() {
           if (i >= list.length) return fail(win);
@@ -2846,6 +2872,7 @@
           img.className = "dp-media";
           img.onload = function () {
             if (!img.naturalWidth || !img.naturalHeight) { i++; return attempt(); }
+            if (setRatio) win.style.aspectRatio = img.naturalWidth + " / " + img.naturalHeight;
             win.appendChild(img);
           };
           img.onerror = function () { i++; attempt(); };
@@ -2895,20 +2922,22 @@
         var win = document.createElement("div");
         win.className = "dp-win";
 
-        var imgList; // supplied image src(s) to place raw
+        var imgList, isScroll = (type === "scroll-image");
         if (type === "pdf") {
-          var pv = pdfPreview(anchor);           // Flat / Stack / Deck sibling image
+          var pv = pdfPreview(anchor);           // Flat / Stack / Deck sibling image (pre-styled)
           imgList = pv.srcs;
           var card = anchor.closest(".block-card");
           if (card) card.setAttribute("data-preview", pv.name); // tag the live pdf card
         } else {
           imgList = [src];                       // image / carousel first slide / scroll-image
-          if (type === "scroll-image") win.classList.add("dp-scroll"); // 4:3 top-crop
+          win.classList.add("dp-obscure");       // image instances: blur + vignette + frame
+          if (isScroll) win.classList.add("dp-scroll"); // landing pages: 4:3 top-crop
         }
         pre.appendChild(win);
         wrapDiv.parentNode.insertBefore(pre, wrapDiv); // between sample-label and CTA
 
-        function render() { renderImage(win, imgList); }
+        // Natural ratio for everything except landing pages (fixed 3:4).
+        function render() { renderImage(win, imgList, !isScroll); }
         return { win: win, render: render };
       }
 
