@@ -843,13 +843,13 @@
       flex: 0 0 auto;
     }
 
-    /* ============ DELIVERABLE PREVIEW (raw supplied image) ============ */
+    /* ============ DELIVERABLE PREVIEW (supplied image) ============ */
     /* Each supplied preview image (the .jpg/.png assets, and the Flat/Stack/    */
-    /* Deck images for PDF instances) is ALREADY fully styled — blur, vignette,  */
-    /* framing, and aspect ratio are baked in. So the site adds NOTHING on top:  */
-    /* no frame, shadow, rounded-corner mask, tint, vignette, blur, or crop, and */
-    /* no forced aspect ratio. The raw image is placed between the sample label  */
-    /* and the CTA at its own natural aspect ratio. aria-hidden +               */
+    /* Deck images for PDF instances) already bakes in its own blur / vignette / */
+    /* styling, so the site adds NO blur, tint, or vignette on top. Landing-page */
+    /* screenshots are cropped to a 4:3 VERTICAL card (top of the page, via      */
+    /* object-fit cover); every other preview keeps its natural aspect ratio.    */
+    /* Injected between the sample label and the CTA; aria-hidden +              */
     /* pointer-events:none, so the CTA stays the only way to open the lightbox.  */
     .dp-preview {
       width: 100%;
@@ -861,11 +861,26 @@
       position: relative;
       width: 100%;
     }
-    /* The raw image, as supplied — no effects, no crop, natural aspect ratio. */
+    /* Non-landing previews: the raw image at its own natural aspect ratio. */
     .dp-media {
       display: block;
       width: 100%;
       height: auto;
+    }
+    /* Landing pages (tall full-page screenshots): crop to a 4:3 VERTICAL card   */
+    /* (3:4 w:h) and show only the TOP of the page via object-fit cover — still  */
+    /* no blur / vignette / overlay added on the image.                         */
+    .dp-win.dp-scroll {
+      aspect-ratio: 3 / 4;
+      overflow: hidden;
+    }
+    .dp-win.dp-scroll .dp-media {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
     }
 
     /* ============ DELIVERABLES SLIDER ============ */
@@ -2802,9 +2817,10 @@
     //   • If the asset is a PDF, DON'T touch the PDF — use a sibling image from
     //     the asset's own folder: "Flat" (Reel, Direct-to-camera), "Deck"
     //     (Slideshow), or "Stack" (every other PDF), as .png or .jpg.
-    // The images are ALREADY fully styled (blur, vignette, framing, aspect ratio
-    // baked in), so they are placed RAW — no site-side blur, tint, vignette,
-    // frame, shadow, mask, crop, or forced ratio — at their natural aspect ratio.
+    // The images already bake in their own styling, so the site adds NO blur,
+    // tint, or vignette. Landing-page screenshots are cropped to a 4:3 vertical
+    // card (top of the page, via object-fit cover); every other preview keeps
+    // its natural aspect ratio.
     // Coming-soon / bracketed cards get nothing. Rendering is lazy
     // (IntersectionObserver, ~200px). Every window is aria-hidden +
     // pointer-events:none, so the CTA remains the ONLY way to open the lightbox
@@ -2887,6 +2903,7 @@
           if (card) card.setAttribute("data-preview", pv.name); // tag the live pdf card
         } else {
           imgList = [src];                       // image / carousel first slide / scroll-image
+          if (type === "scroll-image") win.classList.add("dp-scroll"); // 4:3 top-crop
         }
         pre.appendChild(win);
         wrapDiv.parentNode.insertBefore(pre, wrapDiv); // between sample-label and CTA
