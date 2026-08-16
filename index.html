@@ -412,45 +412,6 @@
       border: 0;
     }
 
-    .play-button {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 84px;
-      height: 84px;
-      border-radius: 9999px;
-      background-color: var(--sage);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 14px 40px -10px rgba(177, 247, 204, 0.55);
-      z-index: 2;
-    }
-
-    .play-button svg {
-      width: 34px;
-      height: 34px;
-      margin-left: 5px;
-      fill: #16241b;
-    }
-
-    .duration-badge {
-      position: absolute;
-      bottom: 14px;
-      right: 14px;
-      font-family: "JetBrains Mono", monospace;
-      font-weight: 500;
-      font-size: 0.72rem;
-      letter-spacing: 0.06em;
-      color: var(--ink);
-      background-color: rgba(0, 0, 0, 0.6);
-      border: 1px solid var(--hairline);
-      padding: 4px 10px;
-      border-radius: 8px;
-      z-index: 2;
-    }
-
     /* ============================================================= */
     /* SAMPLE-DELIVERABLES ZONE                                       */
     /* Each card is just the type name + a CTA; clicking the CTA opens */
@@ -2511,7 +2472,7 @@
                 scroller.appendChild(ph);
                 phs.push(ph);
               }
-              scroller.addEventListener("scroll", update);
+              scroller.addEventListener("scroll", update, { passive: true });
               update();
             });
           })
