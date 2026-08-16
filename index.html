@@ -927,9 +927,11 @@
       display: flex;
       flex-direction: column;
       gap: 24px;                       /* same rhythm as the old .block-card mt-6 */
+      aspect-ratio: 3 / 4;             /* the part window is a 4:3 VERTICAL shape */
       overflow-y: auto;
       overflow-x: hidden;
-      scroll-snap-type: y mandatory;
+      scroll-snap-type: y proximity;   /* snap to a card top; a card taller than
+                                          the 4:3 window won't trap the scroll */
       -webkit-overflow-scrolling: touch;
       overscroll-behavior-y: contain;  /* don't chain page scroll mid-column */
       scrollbar-width: thin;
@@ -2934,23 +2936,18 @@
     })();
 
     // ===========================================================
-    // PART COLUMNS — vertical one-card scroller
+    // PART COLUMNS — vertical 4:3 scroll window
     // For a deliverable type that has PARTS, its horizontal slider holds part
     // COLUMNS (a wrapper div per part with a label + its instance cards), rather
     // than instance cards directly. A no-part type's slider holds .block-card
     // children directly and is left exactly as-is (horizontal). For each part
-    // column, move its instance cards into a vertical scroll-snap scroller whose
-    // height is capped to ONE instance card (+ a small peek when there's more),
-    // so the widget never grows tall with the instance count. Heights are
-    // measured per column and re-measured as previews/fonts load and on resize.
-    // Runs AFTER previews are built (so measurements include the preview) and
+    // column, move its instance cards into a vertical scroll-snap scroller; the
+    // scroller (.part-scroll) is a 4:3 VERTICAL window (aspect-ratio in CSS), and
+    // the cards scroll through it one at a time. No JS height measurement — the
+    // window size is purely CSS, so it can't jump as previews/fonts load. Runs
     // AFTER info-button handlers are bound (moving nodes keeps their listeners).
     // ===========================================================
     (function () {
-      var PEEK = 44; // window = one card + this, so the next card peeks (~20px past
-                     // the 24px gap) as the "scroll for more" cue when there's more
-      var scrollers = [];
-
       document.querySelectorAll(".deliverables-slider").forEach(function (slider) {
         // Part columns = direct children that are NOT a .block-card but contain one.
         var cols = [].filter.call(slider.children, function (c) {
@@ -2970,46 +2967,8 @@
             scroller.appendChild(card);
           });
           col.appendChild(scroller);                 // sits right after the part label
-          scroller.__multi = cards.length > 1;
-          scrollers.push(scroller);
         });
       });
-      if (!scrollers.length) return;
-
-      function sizeOne(scroller) {
-        var cards = [].filter.call(scroller.children, function (c) {
-          return c.classList && c.classList.contains("block-card");
-        });
-        if (!cards.length) return;
-        var max = 0;
-        cards.forEach(function (c) { if (c.offsetHeight > max) max = c.offsetHeight; });
-        if (!max) return;
-        scroller.style.height = (max + (scroller.__multi ? PEEK : 0)) + "px";
-      }
-      function sizeAll() { scrollers.forEach(sizeOne); }
-
-      sizeAll();
-      window.addEventListener("load", sizeAll);
-      var rt = null;
-      window.addEventListener("resize", function () {
-        if (rt) clearTimeout(rt);
-        rt = setTimeout(sizeAll, 150);
-      }, { passive: true });
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeAll);
-
-      // Preview images load after first paint and change card heights — re-measure.
-      if ("ResizeObserver" in window) {
-        var raf = 0;
-        var ro = new ResizeObserver(function () {
-          if (raf) cancelAnimationFrame(raf);
-          raf = requestAnimationFrame(sizeAll);
-        });
-        scrollers.forEach(function (s) {
-          [].forEach.call(s.children, function (c) {
-            if (c.classList && c.classList.contains("block-card")) ro.observe(c);
-          });
-        });
-      }
     })();
 
     // ===========================================================
