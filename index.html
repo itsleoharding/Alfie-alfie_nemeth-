@@ -1018,16 +1018,13 @@
       text-align: center;
     }
 
-    /* ============ FADE UP ON SCROLL ============ */
-    .fade-up {
-      opacity: 0;
-      transform: translateY(28px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-      will-change: opacity, transform;
-    }
+    /* ============ FADE UP ON SCROLL — DISABLED ============ */
+    /* Reveal-on-scroll is off: every element renders at full opacity and its    */
+    /* final position on first paint, with no dependence on scrolling.           */
+    .fade-up,
     .fade-up.is-visible {
       opacity: 1;
-      transform: translateY(0);
+      transform: none;
     }
 
     /* ============ LIGHTBOX (in-page asset viewer) ============ */
@@ -1988,32 +1985,12 @@
   </div>
 
   <script>
-    // Fade-up on scroll via IntersectionObserver.
+    // Reveal-on-scroll disabled: mark everything visible immediately so the
+    // whole page renders on first paint with no dependence on scrolling. (The
+    // .fade-up CSS is already non-hiding; this is a belt-and-suspenders pass.)
     (function () {
-      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      var items = document.querySelectorAll(".fade-up");
-
-      if (reduce || !("IntersectionObserver" in window)) {
-        items.forEach(function (el) {
-          el.classList.add("is-visible");
-        });
-        return;
-      }
-
-      var observer = new IntersectionObserver(
-        function (entries) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("is-visible");
-              observer.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
-      );
-
-      items.forEach(function (el) {
-        observer.observe(el);
+      document.querySelectorAll(".fade-up").forEach(function (el) {
+        el.classList.add("is-visible");
       });
     })();
 
@@ -2751,25 +2728,36 @@
       playBtn.addEventListener("click", function (e) { e.stopPropagation(); toggle(); });
 
       // --- Playbar (progress + buffered) ---
-      function pct(x) { return (Math.max(0, Math.min(1, x)) * 100) + "%"; }
+      // The bar shows a LOGARITHMIC position: from the real fraction t, the
+      // displayed fraction is shown = 1 - (1 - t)^3 (so t=0.5 shows 0.875, early
+      // progress looks much further along). Its inverse maps a clicked bar
+      // position back to real time: t = 1 - (1 - shown)^(1/3). The actual
+      // <video>.currentTime always stays the real value.
+      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+      function shown(t) { return 1 - Math.pow(1 - clamp01(t), 3); }
+      function real(s) { return 1 - Math.pow(1 - clamp01(s), 1 / 3); }
+      function pct(x) { return (clamp01(x) * 100) + "%"; }
       function update() {
         if (!v.duration || isNaN(v.duration)) return;
-        var f = v.currentTime / v.duration;
-        played.style.width = pct(f);
-        handle.style.left = pct(f);
-        prog.setAttribute("aria-valuenow", Math.round(f * 100));
+        var s = shown(v.currentTime / v.duration);   // logarithmic displayed position
+        played.style.width = pct(s);
+        handle.style.left = pct(s);
+        prog.setAttribute("aria-valuenow", Math.round(s * 100));
         if (v.buffered && v.buffered.length) {
-          buffered.style.width = pct(v.buffered.end(v.buffered.length - 1) / v.duration);
+          buffered.style.width = pct(shown(v.buffered.end(v.buffered.length - 1) / v.duration));
         }
       }
       v.addEventListener("timeupdate", update);
       v.addEventListener("progress", update);
 
       // --- Seek by click / drag on the playbar ---
+      // Interpret the clicked position as a `shown` value and convert back to
+      // real time before seeking, so the handle lands where dropped and the log
+      // mapping stays consistent while dragging and after.
       function seekTo(clientX) {
         var r = prog.getBoundingClientRect();
-        var f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-        if (v.duration) { v.currentTime = f * v.duration; update(); }
+        var s = clamp01((clientX - r.left) / r.width);
+        if (v.duration) { v.currentTime = real(s) * v.duration; update(); }
       }
       var dragging = false;
       prog.addEventListener("pointerdown", function (e) {
@@ -2946,21 +2934,10 @@
         var it = build(a);
         if (it) items.push(it);
       });
-      if (!items.length) return;
-
-      // Lazy: render each preview only when it scrolls near the viewport.
-      if (!("IntersectionObserver" in window)) {
-        items.forEach(function (it) { it.render(); });
-        return;
-      }
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          io.unobserve(entry.target);
-          if (entry.target.__dp) entry.target.__dp.render();
-        });
-      }, { rootMargin: "200px 0px" });
-      items.forEach(function (it) { it.win.__dp = it; io.observe(it.win); });
+      // Build every preview immediately on load, so the whole page is complete
+      // on first paint (matches the reveal-on-scroll being disabled — nothing
+      // fills in only once scrolled).
+      items.forEach(function (it) { it.render(); });
     })();
 
     // ===========================================================
